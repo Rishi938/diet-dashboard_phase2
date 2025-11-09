@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diet Analysis Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.0.0/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .chart-container img {
+            width: 100%;
+            height: 200px;
+            object-fit: contain;
+        }
+        .loading {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        pre {
+            background: #f3f4f6;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <header class="bg-blue-600 p-4 text-white">
+        <h1 class="text-3xl font-semibold">🥗 Diet Analysis Dashboard</h1>
+        <p class="text-sm mt-1">Real-time nutritional insights from Azure Functions</p>
+    </header>
+
+    <main class="container mx-auto p-6">
+        <!-- Control Panel -->
+        <section class="mb-6 bg-white p-4 shadow-lg rounded-lg">
+            <div class="flex flex-wrap gap-4 items-center justify-between">
+                <button onclick="loadAllData()" class="bg-blue-600 text-white py-2 px-6 rounded hover:bg-blue-700 transition">
+                    🔄 Refresh All Data
+                </button>
+                <div class="text-sm text-gray-600">
+                    <span id="lastUpdate">Last updated: Never</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Charts Section -->
+        <section class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Explore Nutritional Insights</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                
+                <!-- Bar Chart -->
+                <div class="bg-white p-4 shadow-lg rounded-lg">
+                    <h3 class="font-semibold text-lg mb-2">Bar Chart</h3>
+                    <p class="text-sm text-gray-600 mb-2">Average macronutrient content by diet type.</p>
+                    <p class="text-xs text-blue-600 font-semibold mb-2" id="barTime">Loading...</p>
+                    <div class="chart-container">
+                        <img id="barChart" alt="Bar Chart" class="loading" />
+                    </div>
+                </div>
+
+                <!-- Line Chart -->
+                <div class="bg-white p-4 shadow-lg rounded-lg">
+                    <h3 class="font-semibold text-lg mb-2">Line Chart</h3>
+                    <p class="text-sm text-gray-600 mb-2">Nutrient trends across diet types.</p>
+                    <p class="text-xs text-blue-600 font-semibold mb-2" id="lineTime">Loading...</p>
+                    <div class="chart-container">
+                        <img id="lineChart" alt="Line Chart" class="loading" />
+                    </div>
+                </div>
+
+                <!-- Pie Chart -->
+                <div class="bg-white p-4 shadow-lg rounded-lg">
+                    <h3 class="font-semibold text-lg mb-2">Pie Chart</h3>
+                    <p class="text-sm text-gray-600 mb-2">Recipe distribution by diet type.</p>
+                    <p class="text-xs text-blue-600 font-semibold mb-2" id="pieTime">Loading...</p>
+                    <div class="chart-container">
+                        <img id="pieChart" alt="Pie Chart" class="loading" />
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Diet Insights Section -->
+        <section class="mb-8 bg-white p-6 shadow-lg rounded-lg">
+            <h2 class="text-2xl font-semibold mb-4">📊 Diet Insights</h2>
+            <p class="text-xs text-blue-600 font-semibold mb-3" id="insightsTime">Loading...</p>
+            <div id="insights" class="text-gray-700">
+                <p class="text-center text-gray-400">Loading insights...</p>
+            </div>
+        </section>
+
+        <!-- Filters and Diet Search -->
+        <section class="mb-8 bg-white p-6 shadow-lg rounded-lg">
+            <h2 class="text-2xl font-semibold mb-4">🔍 Search Diet Data</h2>
+            <div class="flex flex-wrap gap-4 items-end">
+                <div class="flex-1 min-w-[200px]">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Select Diet Type:</label>
+                    <select id="dietSelect" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500">
+                        <option value="">-- Choose a diet --</option>
+                        <option value="Paleo">Paleo</option>
+                        <option value="Vegan">Vegan</option>
+                        <option value="Keto">Keto</option>
+                        <option value="Mediterranean">Mediterranean</option>
+                        <option value="Dash">Dash</option>
+                    </select>
+                </div>
+                <button onclick="searchDiet()" class="bg-green-600 text-white py-2 px-6 rounded hover:bg-green-700 transition">
+                    Search
+                </button>
+            </div>
+        </section>
+
+        <!-- Search Results -->
+        <section id="searchResults" class="mb-8 bg-white p-6 shadow-lg rounded-lg" style="display: none;">
+            <h2 class="text-2xl font-semibold mb-4">Search Results</h2>
+            <p class="text-xs text-blue-600 font-semibold mb-3" id="searchTime"></p>
+            <div id="searchContent" class="overflow-x-auto">
+                <!-- Results will be inserted here -->
+            </div>
+        </section>
+    </main>
+
+    <footer class="bg-blue-600 p-4 text-white text-center mt-10">
+        <p>&copy; 2025 Diet Analysis Dashboard. Powered by Azure Functions.</p>
+    </footer>
+
+    <script>
+        const BASE_URL = 'https://diet-analysis-afb4ceacghajcsbp.canadacentral-01.azurewebsites.net/api';
+
+        // Load all data when page loads
+        window.onload = function() {
+            loadAllData();
+        };
+
+        function loadAllData() {
+            loadBarChart();
+            loadLineChart();
+            loadPieChart();
+            loadInsights();
+            updateLastUpdate();
+        }
+
+        function updateLastUpdate() {
+            const now = new Date().toLocaleString();
+            document.getElementById('lastUpdate').textContent = `Last updated: ${now}`;
+        }
+
+        // Load Bar Chart
+        async function loadBarChart() {
+            const startTime = Date.now();
+            const timeEl = document.getElementById('barTime');
+            const imgEl = document.getElementById('barChart');
+            
+            timeEl.textContent = 'Loading...';
+            imgEl.classList.add('loading');
+            
+            try {
+                const response = await fetch(`${BASE_URL}/DietBarChart`);
+                if (!response.ok) throw new Error('Failed to load chart');
+                
+                const blob = await response.blob();
+                const imageUrl = URL.createObjectURL(blob);
+                imgEl.src = imageUrl;
+                imgEl.classList.remove('loading');
+                
+                const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+                timeEl.textContent = `⏱️ Loaded in ${loadTime}s`;
+            } catch (error) {
+                console.error('Error loading bar chart:', error);
+                timeEl.textContent = '❌ Error loading chart';
+                imgEl.classList.remove('loading');
+            }
+        }
+
+        // Load Line Chart
+        async function loadLineChart() {
+            const startTime = Date.now();
+            const timeEl = document.getElementById('lineTime');
+            const imgEl = document.getElementById('lineChart');
+            
+            timeEl.textContent = 'Loading...';
+            imgEl.classList.add('loading');
+            
+            try {
+                const response = await fetch(`${BASE_URL}/DietLineChart`);
+                if (!response.ok) throw new Error('Failed to load chart');
+                
+                const blob = await response.blob();
+                const imageUrl = URL.createObjectURL(blob);
+                imgEl.src = imageUrl;
+                imgEl.classList.remove('loading');
+                
+                const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+                timeEl.textContent = `⏱️ Loaded in ${loadTime}s`;
+            } catch (error) {
+                console.error('Error loading line chart:', error);
+                timeEl.textContent = '❌ Error loading chart';
+                imgEl.classList.remove('loading');
+            }
+        }
+
+        // Load Pie Chart
+        async function loadPieChart() {
+            const startTime = Date.now();
+            const timeEl = document.getElementById('pieTime');
+            const imgEl = document.getElementById('pieChart');
+            
+            timeEl.textContent = 'Loading...';
+            imgEl.classList.add('loading');
+            
+            try {
+                const response = await fetch(`${BASE_URL}/DietPieChart`);
+                if (!response.ok) throw new Error('Failed to load chart');
+                
+                const blob = await response.blob();
+                const imageUrl = URL.createObjectURL(blob);
+                imgEl.src = imageUrl;
+                imgEl.classList.remove('loading');
+                
+                const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+                timeEl.textContent = `⏱️ Loaded in ${loadTime}s`;
+            } catch (error) {
+                console.error('Error loading pie chart:', error);
+                timeEl.textContent = '❌ Error loading chart';
+                imgEl.classList.remove('loading');
+            }
+        }
+
+        // Load Diet Insights (JSON)
+        async function loadInsights() {
+            const startTime = Date.now();
+            const timeEl = document.getElementById('insightsTime');
+            const contentEl = document.getElementById('insights');
+            
+            timeEl.textContent = 'Loading...';
+            contentEl.innerHTML = '<p class="text-center text-gray-400">Loading insights...</p>';
+            
+            try {
+                const response = await fetch(`${BASE_URL}/DietInsights`);
+                if (!response.ok) throw new Error('Failed to load insights');
+                
+                const data = await response.json();
+                
+                const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+                timeEl.textContent = `⏱️ Loaded in ${loadTime}s`;
+                
+                // Display insights in a formatted way
+                contentEl.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            } catch (error) {
+                console.error('Error loading insights:', error);
+                timeEl.textContent = '❌ Error loading insights';
+                contentEl.innerHTML = '<p class="text-red-600">Error loading insights data</p>';
+            }
+        }
+
+        // Search for specific diet
+        async function searchDiet() {
+            const diet = document.getElementById('dietSelect').value;
+            if (!diet) {
+                alert('Please select a diet type');
+                return;
+            }
+            
+            const startTime = Date.now();
+            const resultsSection = document.getElementById('searchResults');
+            const timeEl = document.getElementById('searchTime');
+            const contentEl = document.getElementById('searchContent');
+            
+            resultsSection.style.display = 'block';
+            timeEl.textContent = 'Searching...';
+            contentEl.innerHTML = '<p class="text-center text-gray-400">Loading results...</p>';
+            
+            try {
+                const response = await fetch(`${BASE_URL}/DietSearch?diet=${diet}`);
+                if (!response.ok) throw new Error('Failed to search diet');
+                
+                const csvText = await response.text();
+                
+                const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+                timeEl.textContent = `⏱️ Search completed in ${loadTime}s for diet: ${diet}`;
+                
+                // Parse CSV and display as table
+                const rows = csvText.trim().split('\n');
+                if (rows.length === 0) {
+                    contentEl.innerHTML = '<p class="text-gray-600">No results found</p>';
+                    return;
+                }
+                
+                const headers = rows[0].split(',');
+                
+                let tableHTML = '<table class="min-w-full bg-white border border-gray-300">';
+                tableHTML += '<thead class="bg-gray-200"><tr>';
+                headers.forEach(header => {
+                    tableHTML += `<th class="px-4 py-2 border text-left font-semibold">${header.trim()}</th>`;
+                });
+                tableHTML += '</tr></thead><tbody>';
+                
+                for (let i = 1; i < Math.min(rows.length, 51); i++) { // Limit to 50 rows for display
+                    const cells = rows[i].split(',');
+                    tableHTML += '<tr class="hover:bg-gray-50">';
+                    cells.forEach(cell => {
+                        tableHTML += `<td class="px-4 py-2 border text-sm">${cell.trim()}</td>`;
+                    });
+                    tableHTML += '</tr>';
+                }
+                tableHTML += '</tbody></table>';
+                
+                if (rows.length > 51) {
+                    tableHTML += `<p class="mt-4 text-sm text-gray-600">Showing first 50 of ${rows.length - 1} results</p>`;
+                }
+                
+                contentEl.innerHTML = tableHTML;
+                
+            } catch (error) {
+                console.error('Error searching diet:', error);
+                timeEl.textContent = '❌ Error searching';
+                contentEl.innerHTML = '<p class="text-red-600">Error loading search results</p>';
+            }
+        }
+    </script>
+
+</body>
+</html>
